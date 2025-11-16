@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PDF Editor</title>
+  <style>
+    body{font-family:Arial;margin:20px}
+    .nav-btn{background:#667eea;color:#fff;padding:8px 12px;margin:5px;display:inline-block;text-decoration:none;border-radius:4px}
+    #pdf-viewer{width:100%;height:80vh}
+    #fields{position:absolute;background:rgba(255,255,255,0.9);padding:10px;border:1px solid #ccc}
+    .field-draggable{cursor:move;background:#e3f2fd;padding:4px;margin:2px;border-radius:3px}
+    #progress{display:none;background:#fff;padding:10px;border:1px solid #4caf50}
+  </style>
+</head>
+<body>
+  <h1>PDF Editor – {{ username }}</h1>
+  <div>
+    {% for p in pdfs %}
+      <button class="nav-btn" onclick="loadPDF('{{ p.type }}',{{ p.id }})">{{ p.name }}</button>
+    {% endfor %}
+  </div>
+
+  <div id="editor" style="display:none;margin-top:20px;position:relative">
+    <iframe id="pdf-viewer" frameborder="0"></iframe>
+
+    <div id="fields" style="top:10px;right:10px">
+      <div class="field-draggable" data-field="name">Name</div>
+      <div class="field-draggable" data-field="roll">Roll</div>
+      <div class="field-draggable" data-field="contact">Contact</div>
+      <div class="field-draggable" data-field="email">Email</div>
+      <div class="field-draggable" data-field="signature">Signature</div>
+    </div>
+
+    <button onclick="applyEdits()" style="margin-top:10px">Apply & Download</button>
+    <div id="progress">Progress: <span id="prog-text">0%</span></div>
+  </div>
+
+  <script>
+    let current = {type:null, id:null, pages:0, task:null};
+    const viewer = document.getElementById('pdf-viewer');
+    const fieldsDiv = document.getElementById('fields');
+    const progDiv = document.getElementById('progress');
+    const progText = document.getElementById('prog-text');
+
+    function loadPDF(type, id){
+      fetch(`/pdf-editor/load/${type}/${id}`).then(r=>r.json()).then(data=>{
+        current = {type, id, pages:data.pages, task:null};
+        viewer.src = `/static/pdfjs/web/viewer.html?file=${encodeURIComponent('/static/blank.pdf')}`;
+        document.getElementById('editor').style.display='block';
+        progDiv.style.display='none';
+        // load saved positions
+        fetch('/pdf-editor/get-fields').then(r=>r.json()).then(pos=>{
+          Object.keys(pos).forEach(f=>{
+            const el = fieldsDiv.querySelector(`[data-field="${f}"]`);
+            if(el && pos[f].page < data.pages){
+              el.style.position='absolute';
+              el.style.left = pos[f].x + 'px';
+              el.style.top = pos[f].y + 'px';
+            }
+          });
+        });
+      });
+    }
+
+    // Drag-to-position
+    fieldsDiv.querySelectorAll('.field-draggable').forEach(el=>{
+      el.onmousedown = function(e){
+        let shiftX = e.clientX - el.getBoundingClientRect().left;
+        let shiftY = e.clientY - el.getBoundingClientRect().top;
+        function move(e){
+          el.style.left = (e.clientX - shiftX - fieldsDiv.getBoundingClientRect().left) + 'px';
+          el.style.top = (e.clientY - shiftY - fieldsDiv.getBoundingClientRect().top) + 'px';
+        }
+        document.addEventListener('mousemove', move);
+        el.onmouseup = function(){
+          document.removeEventListener('mousemove', move);
+          const rect = viewer.getBoundingClientRect();
+          const x = (e.clientX - rect.left) * (1000 / rect.width);
+          const y = (rect.height - (e.clientY - rect.top)) * (1000 / rect.height);
+          const page = Math.floor(viewer.contentWindow.PDFViewerApplication.page);
+          fetch('/pdf-editor/save-field',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({name:el.dataset.field, page, x, y})
+          });
+          el.onmouseup = null;
+        };
+      };
+      el.ondragstart = () => false;
+    });
+
+    function applyEdits(){
+      const edits = [];
+      fieldsDiv.querySelectorAll('.field-draggable').forEach(el=>{
+        const val = prompt(`Enter ${el.dataset.field}`, '');
+        if(val) edits.push({field:el.dataset.field, value:val});
+      });
+      fetch('/pdf-editor/apply',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({pdf_type:current.type, pdf_id:current.id, edits})
+      }).then(r=>r.json()).then(data=>{
+        current.task = data.task_id;
+        progDiv.style.display='block';
+        const es = new EventSource(`/pdf-editor/progress/${current.task}`);
+        es.onmessage = function(e){
+          const d = JSON.parse(e.data);
+          if(d.error){ alert(d.error); es.close(); }
+          else if(d.percent!==undefined){
+            progText.innerText = `${d.percent}% – ${d.msg}`;
+            if(d.percent===100){
+              setTimeout(()=>{ window.location = `/pdf-editor/download/${current.task}`; }, 800);
+              es.close();
+            }
+          }
+        };
+      });
+    }
+  </script>
+</body>
+</html>

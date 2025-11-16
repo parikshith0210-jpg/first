@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image to PDF Converter</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f5f5f5; }
+        .header { background: #667eea; color: white; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 24px; }
+        .user-info { display: flex; align-items: center; gap: 20px; }
+        .nav-btn { background: rgba(255,255,255,0.2); color: white; padding: 8px 16px; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; display: inline-block; }
+        .nav-btn:hover { background: rgba(255,255,255,0.3); }
+        .container { max-width: 1200px; margin: 40px auto; padding: 0 20px; }
+        .converter-section { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 30px; }
+        .converter-section h2 { margin-bottom: 20px; color: #333; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; color: #555; font-weight: bold; }
+        input[type="text"] { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; }
+        input[type="text"]:focus { outline: none; border-color: #667eea; }
+        .file-input-area { border: 3px dashed #667eea; border-radius: 8px; padding: 40px; text-align: center; background: #f9f9ff; cursor: pointer; transition: all 0.3s; }
+        .file-input-area:hover { background: #f0f0ff; border-color: #5568d3; }
+        .file-input-area input[type="file"] { display: none; }
+        .file-icon { font-size: 48px; margin-bottom: 10px; }
+        .file-text { color: #667eea; font-size: 16px; font-weight: bold; }
+        .file-hint { color: #999; font-size: 12px; margin-top: 5px; }
+        .selected-files { margin-top: 20px; padding: 15px; background: #f9f9f9; border-radius: 5px; display: none; }
+        .selected-files.show { display: block; }
+        .file-list { list-style: none; }
+        .file-list li { padding: 8px 0; border-bottom: 1px solid #eee; color: #555; }
+        .file-list li:last-child { border-bottom: none; }
+        .convert-btn { background: #667eea; color: white; padding: 14px 28px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 16px; width: 100%; margin-top: 10px; }
+        .convert-btn:hover { background: #5568d3; }
+        .convert-btn:disabled { background: #ccc; cursor: not-allowed; }
+        .pdfs-section { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .pdfs-section h2 { margin-bottom: 20px; color: #333; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f9f9f9; font-weight: bold; color: #555; }
+        .action-btn { padding: 6px 12px; margin: 0 5px; border: none; border-radius: 3px; cursor: pointer; text-decoration: none; display: inline-block; font-size: 12px; }
+        .download-btn { background: #4CAF50; color: white; }
+        .download-btn:hover { background: #45a049; }
+        .delete-btn { background: #f44336; color: white; }
+        .delete-btn:hover { background: #da190b; }
+        .alert { padding: 15px; margin-bottom: 20px; border-radius: 5px; }
+        .alert-error { background: #fee; color: #c33; border: 1px solid #fcc; }
+        .alert-success { background: #efe; color: #3c3; border: 1px solid #cfc; }
+        .no-pdfs { text-align: center; color: #999; padding: 40px; }
+        .info-box { background: #e8f4fd; border-left: 4px solid #2196F3; padding: 15px; margin-bottom: 20px; border-radius: 4px; }
+        .info-box p { color: #1976D2; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <h1>Image to PDF Converter</h1>
+            <div class="user-info">
+                <span>{{ username }}</span>
+                <a href="{{ url_for('dashboard') }}" class="nav-btn">Files</a>
+<a href="{{ url_for('image_to_pdf_page') }}" class="nav-btn">Image to PDF</a>
+<a href="{{ url_for('chat') }}" class="nav-btn">Chat</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="converter-section">
+            <h2>📄 Convert Images to PDF</h2>
+
+            <div class="info-box">
+                <p>✓ Upload multiple images (PNG, JPG, JPEG, GIF, BMP, WEBP)</p>
+                <p>✓ Images will be combined in the order you select them</p>
+                <p>✓ Your PDF will be ready to download instantly</p>
+            </div>
+
+            <form method="POST" action="{{ url_for('convert_images_to_pdf') }}" enctype="multipart/form-data" id="pdfForm">
+                <div class="form-group">
+                    <label>PDF Name (optional)</label>
+                    <input type="text" name="pdf_name" placeholder="e.g., my-document" maxlength="50">
+                </div>
+
+                <div class="form-group">
+                    <label>Select Images</label>
+                    <div class="file-input-area" onclick="document.getElementById('imageInput').click()">
+                        <div class="file-icon">🖼️</div>
+                        <div class="file-text">Click to select images</div>
+                        <div class="file-hint">or drag and drop images here</div>
+                        <input type="file" id="imageInput" name="images" accept="image/*" multiple>
+                    </div>
+                </div>
+
+                <div class="selected-files" id="selectedFiles">
+                    <strong>Selected Images:</strong>
+                    <ul class="file-list" id="fileList"></ul>
+                </div>
+
+                <button type="submit" class="convert-btn" id="convertBtn" disabled>Convert to PDF</button>
+            </form>
+        </div>
+
+        <div class="pdfs-section">
+            <h2>Your PDFs</h2>
+            {% if pdfs %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>PDF Name</th>
+                            <th>Images</th>
+                            <th>Created Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pdf in pdfs %}
+                        <tr>
+                            <td>{{ pdf[1] }}</td>
+                            <td>{{ pdf[2] }} images</td>
+                            <td>{{ pdf[3] }}</td>
+                            <td>
+                                <a href="{{ url_for('download_pdf', pdf_id=pdf[0]) }}" class="action-btn download-btn">Download</a>
+                                <a href="{{ url_for('delete_pdf', pdf_id=pdf[0]) }}" class="action-btn delete-btn" onclick="return confirm('Are you sure you want to delete this PDF?')">Delete</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="no-pdfs">No PDFs created yet. Convert your first images above!</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const fileList = document.getElementById('fileList');
+        const selectedFiles = document.getElementById('selectedFiles');
+        const convertBtn = document.getElementById('convertBtn');
+        const fileInputArea = document.querySelector('.file-input-area');
+
+        imageInput.addEventListener('change', function() {
+            updateFileList();
+        });
+
+        // Drag and drop functionality
+        fileInputArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            this.style.background = '#e8e8ff';
+        });
+
+        fileInputArea.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            this.style.background = '#f9f9ff';
+        });
+
+        fileInputArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.style.background = '#f9f9ff';
+
+            const files = e.dataTransfer.files;
+            imageInput.files = files;
+            updateFileList();
+        });
+
+        function updateFileList() {
+            const files = imageInput.files;
+
+            if (files.length > 0) {
+                fileList.innerHTML = '';
+                for (let i = 0; i < files.length; i++) {
+                    const li = document.createElement('li');
+                    li.textContent = `${i + 1}. ${files[i].name}`;
+                    fileList.appendChild(li);
+                }
+                selectedFiles.classList.add('show');
+                convertBtn.disabled = false;
+            } else {
+                selectedFiles.classList.remove('show');
+                convertBtn.disabled = true;
+            }
+        }
+    </script>
+</body>
+</html>

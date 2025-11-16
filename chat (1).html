@@ -1,0 +1,150 @@
+<!-- templates/chat.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Global Chat</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f5f5f5; height: 100vh; display: flex; flex-direction: column; }
+        .header { background: #667eea; color: white; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 24px; }
+        .user-info { display: flex; align-items: center; gap: 20px; }
+        .nav-btn { background: rgba(255,255,255,0.2); color: white; padding: 8px 16px; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; display: inline-block; }
+        .nav-btn:hover { background: rgba(255,255,255,0.3); }
+        .chat-container { max-width: 1200px; margin: 20px auto; flex: 1; display: flex; flex-direction: column; width: 100%; padding: 0 20px; }
+        .chat-box { background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .messages-container { flex: 1; overflow-y: auto; padding: 20px; }
+        .message { margin-bottom: 15px; padding: 10px 15px; border-radius: 8px; max-width: 70%; word-wrap: break-word; }
+        .message.own { background: #667eea; color: white; margin-left: auto; }
+        .message.other { background: #f0f0f0; color: #333; }
+        .message-username { font-weight: bold; font-size: 12px; margin-bottom: 5px; }
+        .message.own .message-username { color: rgba(255,255,255,0.9); }
+        .message.other .message-username { color: #667eea; }
+        .message-text { font-size: 14px; }
+        .message-time { font-size: 10px; margin-top: 5px; opacity: 0.7; }
+        .input-area { display: flex; gap: 10px; padding: 20px; border-top: 1px solid #eee; background: white; }
+        .input-area input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; }
+        .input-area input:focus { outline: none; border-color: #667eea; }
+        .send-btn { background: #667eea; color: white; padding: 12px 24px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .send-btn:hover { background: #5568d3; }
+        .send-btn:disabled { background: #ccc; cursor: not-allowed; }
+        .chat-info { text-align: center; padding: 10px; background: #f9f9f9; color: #666; font-size: 12px; border-bottom: 1px solid #eee; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <h1>Global Chat</h1>
+            <div class="user-info">
+                <span>{{ username }}</span>
+                <a href="{{ url_for('dashboard') }}" class="nav-btn">Files</a>
+<a href="{{ url_for('image_to_pdf_page') }}" class="nav-btn">Image to PDF</a>
+<a href="{{ url_for('chat') }}" class="nav-btn">Chat</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-container">
+        <div class="chat-box">
+            <div class="chat-info">
+                💬 Welcome to the global chat! Everyone can see your messages.
+            </div>
+            <div class="messages-container" id="messages"></div>
+            <div class="input-area">
+                <input type="text" id="messageInput" placeholder="Type your message..." maxlength="500">
+                <button class="send-btn" id="sendBtn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const username = "{{ username }}";
+        let lastMessageId = 0;
+        let isLoading = false;
+
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function addMessage(msg, isOwn) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isOwn ? 'own' : 'other'}`;
+
+            messageDiv.innerHTML = `
+                <div class="message-username">${msg.username}</div>
+                <div class="message-text">${escapeHtml(msg.message)}</div>
+                <div class="message-time">${formatTime(msg.timestamp)}</div>
+            `;
+
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            lastMessageId = msg.id;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+
+            if (!message || isLoading) return;
+
+            isLoading = true;
+            document.getElementById('sendBtn').disabled = true;
+
+            try {
+                const response = await fetch('/send_message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    input.value = '';
+                    loadMessages();
+                }
+            } catch (error) {
+                console.error('Error sending message:', error);
+            } finally {
+                isLoading = false;
+                document.getElementById('sendBtn').disabled = false;
+                input.focus();
+            }
+        }
+
+        async function loadMessages() {
+            try {
+                const response = await fetch(`/get_messages?since_id=${lastMessageId}`);
+                const messages = await response.json();
+
+                messages.forEach(msg => {
+                    const isOwn = msg.username === username;
+                    addMessage(msg, isOwn);
+                });
+            } catch (error) {
+                console.error('Error loading messages:', error);
+            }
+        }
+
+        document.getElementById('sendBtn').addEventListener('click', sendMessage);
+        document.getElementById('messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        // Load messages initially
+        loadMessages();
+
+        // Poll for new messages every 2 seconds
+        setInterval(loadMessages, 2000);
+    </script>
+</body>
+</html>
