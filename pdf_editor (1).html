@@ -1,120 +1,162 @@
+# MERGE_PDF.HTML
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>PDF Editor</title>
-  <style>
-    body{font-family:Arial;margin:20px}
-    .nav-btn{background:#667eea;color:#fff;padding:8px 12px;margin:5px;display:inline-block;text-decoration:none;border-radius:4px}
-    #pdf-viewer{width:100%;height:80vh}
-    #fields{position:absolute;background:rgba(255,255,255,0.9);padding:10px;border:1px solid #ccc}
-    .field-draggable{cursor:move;background:#e3f2fd;padding:4px;margin:2px;border-radius:3px}
-    #progress{display:none;background:#fff;padding:10px;border:1px solid #4caf50}
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Merge PDF - File Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .back-btn {
+            display: inline-block;
+            margin-bottom: 20px;
+            background: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            transition: 0.3s;
+        }
+        
+        .back-btn:hover {
+            background: #f0f0f0;
+        }
+        
+        .form-container {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 10px;
+            color: #555;
+            font-weight: 600;
+        }
+        
+        .checkbox-group {
+            border: 1px solid #eee;
+            border-radius: 5px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .checkbox-item {
+            margin-bottom: 10px;
+        }
+        
+        input[type="checkbox"] {
+            margin-right: 10px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .checkbox-item label {
+            display: inline;
+            margin: 0;
+            font-weight: normal;
+            cursor: pointer;
+        }
+        
+        button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .empty-message {
+            text-align: center;
+            color: #999;
+            padding: 20px;
+        }
+    </style>
 </head>
 <body>
-  <h1>PDF Editor – {{ username }}</h1>
-  <div>
-    {% for p in pdfs %}
-      <button class="nav-btn" onclick="loadPDF('{{ p.type }}',{{ p.id }})">{{ p.name }}</button>
-    {% endfor %}
-  </div>
-
-  <div id="editor" style="display:none;margin-top:20px;position:relative">
-    <iframe id="pdf-viewer" frameborder="0"></iframe>
-
-    <div id="fields" style="top:10px;right:10px">
-      <div class="field-draggable" data-field="name">Name</div>
-      <div class="field-draggable" data-field="roll">Roll</div>
-      <div class="field-draggable" data-field="contact">Contact</div>
-      <div class="field-draggable" data-field="email">Email</div>
-      <div class="field-draggable" data-field="signature">Signature</div>
+    <div class="container">
+        <a href="{{ url_for('dashboard') }}" class="back-btn">← Back to Dashboard</a>
+        
+        <div class="form-container">
+            <h1>🔗 Merge PDF Files</h1>
+            
+            {% if error %}
+                <div class="error">{{ error }}</div>
+            {% endif %}
+            
+            {% if files %}
+                <form method="POST">
+                    <div class="form-group">
+                        <label>Select PDFs to Merge (at least 2):</label>
+                        <div class="checkbox-group">
+                            {% for file in files %}
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="pdf{{ file[0] }}" name="pdf_ids" value="{{ file[0] }}">
+                                    <label for="pdf{{ file[0] }}">{{ file[1] }}</label>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <button type="submit">Merge PDFs</button>
+                </form>
+            {% else %}
+                <div class="empty-message">
+                    <p>No PDF files available. <a href="{{ url_for('upload') }}" style="color: #667eea;">Upload PDFs first</a></p>
+                </div>
+            {% endif %}
+        </div>
     </div>
-
-    <button onclick="applyEdits()" style="margin-top:10px">Apply & Download</button>
-    <div id="progress">Progress: <span id="prog-text">0%</span></div>
-  </div>
-
-  <script>
-    let current = {type:null, id:null, pages:0, task:null};
-    const viewer = document.getElementById('pdf-viewer');
-    const fieldsDiv = document.getElementById('fields');
-    const progDiv = document.getElementById('progress');
-    const progText = document.getElementById('prog-text');
-
-    function loadPDF(type, id){
-      fetch(`/pdf-editor/load/${type}/${id}`).then(r=>r.json()).then(data=>{
-        current = {type, id, pages:data.pages, task:null};
-        viewer.src = `/static/pdfjs/web/viewer.html?file=${encodeURIComponent('/static/blank.pdf')}`;
-        document.getElementById('editor').style.display='block';
-        progDiv.style.display='none';
-        // load saved positions
-        fetch('/pdf-editor/get-fields').then(r=>r.json()).then(pos=>{
-          Object.keys(pos).forEach(f=>{
-            const el = fieldsDiv.querySelector(`[data-field="${f}"]`);
-            if(el && pos[f].page < data.pages){
-              el.style.position='absolute';
-              el.style.left = pos[f].x + 'px';
-              el.style.top = pos[f].y + 'px';
-            }
-          });
-        });
-      });
-    }
-
-    // Drag-to-position
-    fieldsDiv.querySelectorAll('.field-draggable').forEach(el=>{
-      el.onmousedown = function(e){
-        let shiftX = e.clientX - el.getBoundingClientRect().left;
-        let shiftY = e.clientY - el.getBoundingClientRect().top;
-        function move(e){
-          el.style.left = (e.clientX - shiftX - fieldsDiv.getBoundingClientRect().left) + 'px';
-          el.style.top = (e.clientY - shiftY - fieldsDiv.getBoundingClientRect().top) + 'px';
-        }
-        document.addEventListener('mousemove', move);
-        el.onmouseup = function(){
-          document.removeEventListener('mousemove', move);
-          const rect = viewer.getBoundingClientRect();
-          const x = (e.clientX - rect.left) * (1000 / rect.width);
-          const y = (rect.height - (e.clientY - rect.top)) * (1000 / rect.height);
-          const page = Math.floor(viewer.contentWindow.PDFViewerApplication.page);
-          fetch('/pdf-editor/save-field',{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({name:el.dataset.field, page, x, y})
-          });
-          el.onmouseup = null;
-        };
-      };
-      el.ondragstart = () => false;
-    });
-
-    function applyEdits(){
-      const edits = [];
-      fieldsDiv.querySelectorAll('.field-draggable').forEach(el=>{
-        const val = prompt(`Enter ${el.dataset.field}`, '');
-        if(val) edits.push({field:el.dataset.field, value:val});
-      });
-      fetch('/pdf-editor/apply',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({pdf_type:current.type, pdf_id:current.id, edits})
-      }).then(r=>r.json()).then(data=>{
-        current.task = data.task_id;
-        progDiv.style.display='block';
-        const es = new EventSource(`/pdf-editor/progress/${current.task}`);
-        es.onmessage = function(e){
-          const d = JSON.parse(e.data);
-          if(d.error){ alert(d.error); es.close(); }
-          else if(d.percent!==undefined){
-            progText.innerText = `${d.percent}% – ${d.msg}`;
-            if(d.percent===100){
-              setTimeout(()=>{ window.location = `/pdf-editor/download/${current.task}`; }, 800);
-              es.close();
-            }
-          }
-        };
-      });
-    }
-  </script>
 </body>
 </html>
