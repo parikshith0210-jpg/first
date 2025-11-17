@@ -1,10 +1,10 @@
-# MERGE_PDF.HTML
+# IMAGE_TO_PDF.HTML
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Merge PDF - File Manager</title>
+    <title>Image to PDF - File Manager</title>
     <style>
         * {
             margin: 0;
@@ -129,7 +129,7 @@
         <a href="{{ url_for('dashboard') }}" class="back-btn">← Back to Dashboard</a>
         
         <div class="form-container">
-            <h1>🔗 Merge PDF Files</h1>
+            <h1>🖼️ Convert Images to PDF</h1>
             
             {% if error %}
                 <div class="error">{{ error }}</div>
@@ -138,22 +138,22 @@
             {% if files %}
                 <form method="POST">
                     <div class="form-group">
-                        <label>Select PDFs to Merge (at least 2):</label>
+                        <label>Select Images to Convert:</label>
                         <div class="checkbox-group">
                             {% for file in files %}
                                 <div class="checkbox-item">
-                                    <input type="checkbox" id="pdf{{ file[0] }}" name="pdf_ids" value="{{ file[0] }}">
-                                    <label for="pdf{{ file[0] }}">{{ file[1] }}</label>
+                                    <input type="checkbox" id="img{{ file[0] }}" name="image_ids" value="{{ file[0] }}">
+                                    <label for="img{{ file[0] }}">{{ file[1] }}</label>
                                 </div>
                             {% endfor %}
                         </div>
                     </div>
                     
-                    <button type="submit">Merge PDFs</button>
+                    <button type="submit">Convert to PDF</button>
                 </form>
             {% else %}
                 <div class="empty-message">
-                    <p>No PDF files available. <a href="{{ url_for('upload') }}" style="color: #667eea;">Upload PDFs first</a></p>
+                    <p>No image files available. <a href="{{ url_for('upload') }}" style="color: #667eea;">Upload images first</a></p>
                 </div>
             {% endif %}
         </div>
